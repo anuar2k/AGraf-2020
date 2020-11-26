@@ -1,4 +1,4 @@
-import os, sys
+import os, sys, queue, functools
 import dimacs
 
 os.chdir(sys.path[0])
@@ -16,6 +16,18 @@ class Node:
     def __repr__(self):
         return self.edges.__repr__()
 
+@functools.total_ordering
+class ReverseItem:
+    def __init__(self, key, val):
+        self.key = key
+        self.val = val
+
+    def __eq__(self, other):
+        return self.key == other.key
+
+    def __lt__(self, other):
+        return self.key > other.key
+
 def merge_vertices(G, src, tgt):
     for v, w in G[src].edges.items():
         G[tgt].add_edge(v, w)
@@ -26,23 +38,32 @@ def merge_vertices(G, src, tgt):
     G[tgt].del_edge(tgt)
     G.pop(src)
 
-def tightness(G, S):
-    result = {}
-    for u, node in G.items():
-        if u in S:
-            result[u] = 0
-        else:
-            result[u] = sum([w for v, w in node.edges.items() if v in S])
-
-    return result
-
 def minimum_cut_phase(G):
     fst_elem_key = next(iter(G.keys()))
     C = {fst_elem_key:G[fst_elem_key]}
 
+    Q = queue.PriorityQueue()
+    cut_weights = {}
+    for u in G:
+        if u not in C:
+            init_weight = sum([w for v, w in G[u].edges.items() if v in C])
+            Q.put((init_weight, u))
+            cut_weights[u] = init_weight
+
     cut_weight = None
     while len(C) < len(G):
-        u, cut_weight = max(tightness(G, C).items(), key = lambda item: item[1])
+        u = None
+        # skip queue elements, which were already used in C
+        while True:
+            cut_weight, u = Q.get()
+            if u not in C:
+                break
+
+        for v, w in G[u].edges.items():
+            if v not in C:
+                cut_weights[v] -= w
+                Q.put((cut_weights[v], v))
+
         C[u] = G[u]
 
     r_iter = reversed(G.keys())
@@ -64,5 +85,5 @@ def minimum_cut(size, edge_list):
 
     return min([minimum_cut_phase(G) for _ in range(size - 1)])
 
-data = dimacs.loadWeightedGraph("graphs/clique200")
+data = dimacs.loadWeightedGraph("graphs/trivial")
 print(minimum_cut(*data))
