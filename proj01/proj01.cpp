@@ -85,8 +85,10 @@ bool solve(Tournament& tournament) {
         graph[match_vtx].emplace_back(match.winner);
         graph[match.winner].emplace_back(match_vtx);
 
-        graph[match_vtx].emplace_back(match.loser, match.bribe_cost);
-        graph[match.loser].emplace_back(match_vtx, -match.bribe_cost);
+        if (match.winner != 0 && match.bribe_cost <= tournament.budget) {
+            graph[match_vtx].emplace_back(match.loser, match.bribe_cost);
+            graph[match.loser].emplace_back(match_vtx, -match.bribe_cost);
+        }
 
         ++match_vtx;
     }
@@ -128,8 +130,11 @@ bool solve(Tournament& tournament) {
             find_edge(graph[match_vtx], match.winner).capacity = 1;
             find_edge(graph[match.winner], match_vtx).capacity = 0;
 
-            find_edge(graph[match_vtx], match.loser).capacity = 1;
-            find_edge(graph[match.loser], match_vtx).capacity = 0;
+            if (match.winner != 0 && match.bribe_cost <= tournament.budget) {
+                find_edge(graph[match_vtx], match.loser).capacity = 1;
+                find_edge(graph[match.loser], match_vtx).capacity = 0;
+            }
+
             ++match_vtx;
         }
 
