@@ -1,4 +1,4 @@
-import os, sys, queue, functools
+import os, sys, queue, functools, time
 import dimacs
 
 os.chdir(sys.path[0])
@@ -28,6 +28,9 @@ class ReverseItem:
     def __lt__(self, other):
         return self.key > other.key
 
+    def __repr__(self):
+        return f"ReverseItem<{self.key}, {self.val}>"
+
 def merge_vertices(G, src, tgt):
     for v, w in G[src].edges.items():
         G[tgt].add_edge(v, w)
@@ -47,7 +50,7 @@ def minimum_cut_phase(G):
     for u in G:
         if u not in C:
             init_weight = sum([w for v, w in G[u].edges.items() if v in C])
-            Q.put((init_weight, u))
+            Q.put(ReverseItem(init_weight, u))
             cut_weights[u] = init_weight
 
     cut_weight = None
@@ -55,14 +58,15 @@ def minimum_cut_phase(G):
         u = None
         # skip queue elements, which were already used in C
         while True:
-            cut_weight, u = Q.get()
+            item = Q.get()
+            cut_weight, u = item.key, item.val
             if u not in C:
                 break
 
         for v, w in G[u].edges.items():
             if v not in C:
-                cut_weights[v] -= w
-                Q.put((cut_weights[v], v))
+                cut_weights[v] += w
+                Q.put(ReverseItem(cut_weights[v], v))
 
         C[u] = G[u]
 
@@ -85,5 +89,8 @@ def minimum_cut(size, edge_list):
 
     return min([minimum_cut_phase(G) for _ in range(size - 1)])
 
-data = dimacs.loadWeightedGraph("graphs/trivial")
+data = dimacs.loadWeightedGraph("graphs/clique200")
+
+t_start = time.process_time()
 print(minimum_cut(*data))
+print(time.process_time() - t_start)
