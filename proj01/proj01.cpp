@@ -11,9 +11,6 @@ using namespace std;
 struct Vertex {
     int distance = INFINITY;
     int predecessor = NONE;
-    int start_potential;
-    int potential;
-    bool reached;
 };
 
 struct VertexRanges {
@@ -161,32 +158,6 @@ bool solve(Tournament& tournament) {
 
     //-------------actual algorithm------------------------
 
-    //find potentials using Bellman-Ford
-    reset_capacities(tournament, vr, graph, 1);
-
-    fill(vertex_data.begin(), vertex_data.end(), Vertex());
-    vertex_data[vr.source].distance = 0;
-
-    //|V| - 1 times
-    for (int i = 0; i < vr.vertex_count - 1; ++i) {
-        //for every edge
-        for (int u = 0; u < vr.vertex_count; ++u) {
-            for (Edge& edge : graph[u]) {
-                if (edge.capacity > 0 && vertex_data[u].distance != INFINITY) {
-                    int new_distance = vertex_data[u].distance + edge.cost;
-
-                    if (new_distance < vertex_data[edge.target].distance) {
-                        vertex_data[edge.target].distance = new_distance;
-                    }
-                }
-            }
-        }
-    }
-
-    for (int vtx = 0; vtx < vr.vertex_count; ++vtx) {
-        vertex_data[vtx].start_potential = vertex_data[vtx].distance;
-    }
-
     //get lower bound for win_with
     int won_by_king = 0;
     for (Match& match : tournament.matches) {
@@ -194,6 +165,9 @@ bool solve(Tournament& tournament) {
             ++won_by_king;
         }
     }
+
+    queue<int> queue;
+    vector<bool> queue_contains(vr.vertex_count);
 
     for (int win_with = max(won_by_king, tournament.player_count / 2); win_with < tournament.player_count; ++win_with) {
         //-----------set capacities in graph---------------
@@ -203,54 +177,39 @@ bool solve(Tournament& tournament) {
         int cost = 0;
         int flow = 0;
 
-        //set initial potentials
-        for (int vtx = 0; vtx < vr.vertex_count; ++vtx) {
-            vertex_data[vtx].potential = vertex_data[vtx].start_potential;
-        }
-
         while (true) {
-            for (int vtx = 0; vtx < vr.vertex_count; ++vtx) {
-                vertex_data[vtx].distance = INFINITY;
-                vertex_data[vtx].predecessor = NONE;
-                vertex_data[vtx].reached = false;
-            }
-
+            fill(vertex_data.begin(), vertex_data.end(), Vertex());
             vertex_data[vr.source].distance = 0;
 
             int lowest_capacity = INFINITY;
-            //lexicographical comparison of pairs, so weight goes first
-            priority_queue<pair<int, int>, vector<pair<int, int>>, greater<pair<int, int>>> queue;
-            queue.emplace(0, vr.source);
+
+            queue.push(vr.source);
+            queue_contains[vr.source] = true;
 
             while (!queue.empty()) {
-                pair<int, int> dist_vtx = queue.top();
+                int u = queue.front();
                 queue.pop();
-
-                int u = dist_vtx.second;
-
-                if (vertex_data[u].reached || dist_vtx.first != vertex_data[u].distance) {
-                    continue;
-                }
-
-                vertex_data[u].reached = true;
+                queue_contains[u] = false;
 
                 for (Edge& edge : graph[u]) {
                     if (edge.capacity > 0) {
-                        int new_distance = vertex_data[u].distance + edge.cost + vertex_data[u].potential - vertex_data[edge.target].potential;
+                        int new_distance = vertex_data[u].distance + edge.cost;
 
                         if (new_distance < vertex_data[edge.target].distance) {
                             vertex_data[edge.target].distance = new_distance;
                             vertex_data[edge.target].predecessor = u;
 
+                            if (!queue_contains[edge.target]) {
+                                queue.push(edge.target);
+                                queue_contains[edge.target] = true;
+                            }
+
                             if (edge.capacity < lowest_capacity) {
                                 lowest_capacity = edge.capacity;
                             }
-
-                            queue.emplace(new_distance, edge.target);
                         }
                     }
                 }
-
             }
 
             int curr = vr.target;
@@ -268,16 +227,6 @@ bool solve(Tournament& tournament) {
 
                     curr = vertex_data[curr].predecessor;
                     pred = vertex_data[pred].predecessor;
-                }
-                
-                //update potentials
-                for (int vtx = 0; vtx < vr.vertex_count; ++vtx) {
-                    if (vertex_data[vtx].distance == INFINITY) {
-                        vertex_data[vtx].potential = INFINITY;
-                    }
-                    else {
-                        vertex_data[vtx].potential += vertex_data[vtx].distance;
-                    }
                 }
             }
             else {
