@@ -166,6 +166,7 @@ bool solve(Tournament& tournament) {
         }
     }
 
+    //SPFA prerequisities
     queue<int> queue;
     vector<bool> queue_contains(vr.vertex_count);
 
@@ -178,6 +179,7 @@ bool solve(Tournament& tournament) {
         int flow = 0;
 
         while (true) {
+            //find augmenting paths with SPFA
             fill(vertex_data.begin(), vertex_data.end(), Vertex());
             vertex_data[vr.source].distance = 0;
 
