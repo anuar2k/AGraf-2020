@@ -1,6 +1,7 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include <queue>
 
 using namespace std;
 
@@ -10,6 +11,20 @@ using namespace std;
 struct Vertex {
     int distance = INFINITY;
     int predecessor = NONE;
+    int start_potential;
+    int potential;
+    bool reached;
+};
+
+struct VertexRanges {
+    int players_from;
+    int players_to; //exclusive
+    int matches_from;
+    int matches_to; //exclusive
+    int bottleneck;
+    int source;
+    int target;
+    int vertex_count;
 };
 
 struct Edge {
@@ -54,33 +69,15 @@ inline Edge& find_edge(vector<Edge>& edge_list, int target) {
     return *(Edge*)nullptr;
 }
 
-bool solve(Tournament& tournament) {
-    //-------------initialize graph and edge costs---------
-
-    //vertex ranges
-    int players_from = 0;
-    int players_to = players_from + tournament.player_count; //exclusive
-    int matches_from = players_to;
-    int matches_to = matches_from + tournament.match_count; //exclusive
-    int bottleneck = matches_to;
-    int source = bottleneck + 1;
-    int target = source + 1;
-    int vertex_count = target + 1;
-
-    //for optimised iteration time
-    vector<vector<Edge>> graph(vertex_count, vector<Edge>());
-
-    //for instant lookup/update time
-    vector<Vertex> vertex_data(vertex_count);
-
+void init_edges(Tournament& tournament, VertexRanges& vr, vector<vector<Edge>>& graph) {
     //source to matches
-    for (int match_vtx = matches_from; match_vtx < matches_to; ++match_vtx) {
-        graph[source].emplace_back(match_vtx);
-        graph[match_vtx].emplace_back(source);
+    for (int match_vtx = vr.matches_from; match_vtx < vr.matches_to; ++match_vtx) {
+        graph[vr.source].emplace_back(match_vtx);
+        graph[match_vtx].emplace_back(vr.source);
     }
 
     //matches to players
-    int match_vtx = matches_from;
+    int match_vtx = vr.matches_from;
     for (Match& match : tournament.matches) {
         graph[match_vtx].emplace_back(match.winner);
         graph[match.winner].emplace_back(match_vtx);
@@ -95,19 +92,102 @@ bool solve(Tournament& tournament) {
 
     //players (without king) to bottleneck
     for (int player_vtx = 1; player_vtx < tournament.player_count; ++player_vtx) {
-        graph[player_vtx].emplace_back(bottleneck);
-        graph[bottleneck].emplace_back(player_vtx);
+        graph[player_vtx].emplace_back(vr.bottleneck);
+        graph[vr.bottleneck].emplace_back(player_vtx);
     }
 
     //king to target
-    graph[0].emplace_back(target);
-    graph[target].emplace_back(0);
+    graph[0].emplace_back(vr.target);
+    graph[vr.target].emplace_back(0);
 
     //bottleneck to target
-    graph[bottleneck].emplace_back(target);
-    graph[target].emplace_back(bottleneck);
+    graph[vr.bottleneck].emplace_back(vr.target);
+    graph[vr.target].emplace_back(vr.bottleneck);
+}
+
+void reset_capacities(Tournament& tournament, VertexRanges& vr, vector<vector<Edge>>& graph, int win_with) {
+    //source to matches
+    for (int match_vtx = vr.matches_from; match_vtx < vr.matches_to; ++match_vtx) {
+        find_edge(graph[vr.source], match_vtx).capacity = 1;
+        find_edge(graph[match_vtx], vr.source).capacity = 0;
+    }
+
+    //matches to players
+    int match_vtx = vr.matches_from;
+    for (Match& match : tournament.matches) {
+        find_edge(graph[match_vtx], match.winner).capacity = 1;
+        find_edge(graph[match.winner], match_vtx).capacity = 0;
+
+        if (match.winner != 0 && match.bribe_cost <= tournament.budget) {
+            find_edge(graph[match_vtx], match.loser).capacity = 1;
+            find_edge(graph[match.loser], match_vtx).capacity = 0;
+        }
+
+        ++match_vtx;
+    }
+
+    //players (without king) to bottleneck
+    for (int player_vtx = 1; player_vtx < tournament.player_count; ++player_vtx) {
+        find_edge(graph[player_vtx], vr.bottleneck).capacity = win_with;
+        find_edge(graph[vr.bottleneck], player_vtx).capacity = 0;
+    }
+
+    //king to target
+    find_edge(graph[0], vr.target).capacity = win_with;
+    find_edge(graph[vr.target], 0).capacity = 0;
+
+    //bottleneck to target
+    find_edge(graph[vr.bottleneck], vr.target).capacity = tournament.match_count - win_with;
+    find_edge(graph[vr.target], vr.bottleneck).capacity = 0;
+}
+
+bool solve(Tournament& tournament) {
+    //-------------initialize graph and edge costs---------
+    VertexRanges vr {
+        .players_from = 0,
+        .players_to = vr.players_from + tournament.player_count,
+        .matches_from = vr.players_to,
+        .matches_to = vr.matches_from + tournament.match_count,
+        .bottleneck = vr.matches_to,
+        .source = vr.bottleneck + 1,
+        .target = vr.source + 1,
+        .vertex_count = vr.target + 1
+    };
+
+    vector<vector<Edge>> graph(vr.vertex_count);
+    vector<Vertex> vertex_data(vr.vertex_count);
+
+    init_edges(tournament, vr, graph);
 
     //-------------actual algorithm------------------------
+
+    //find potentials using Bellman-Ford
+    reset_capacities(tournament, vr, graph, 1);
+
+    fill(vertex_data.begin(), vertex_data.end(), Vertex());
+    vertex_data[vr.source].distance = 0;
+
+    //|V| - 1 times
+    for (int i = 0; i < vr.vertex_count - 1; ++i) {
+        //for every edge
+        for (int u = 0; u < vr.vertex_count; ++u) {
+            for (Edge& edge : graph[u]) {
+                if (edge.capacity > 0 && vertex_data[u].distance != INFINITY) {
+                    int new_distance = vertex_data[u].distance + edge.cost;
+
+                    if (new_distance < vertex_data[edge.target].distance) {
+                        vertex_data[edge.target].distance = new_distance;
+                    }
+                }
+            }
+        }
+    }
+
+    for (int vtx = 0; vtx < vr.vertex_count; ++vtx) {
+        vertex_data[vtx].start_potential = vertex_data[vtx].distance;
+    }
+
+    //get lower bound for win_with
     int won_by_king = 0;
     for (Match& match : tournament.matches) {
         if (match.winner == 0) {
@@ -117,74 +197,67 @@ bool solve(Tournament& tournament) {
 
     for (int win_with = max(won_by_king, tournament.player_count / 2); win_with < tournament.player_count; ++win_with) {
         //-----------set capacities in graph---------------
+        reset_capacities(tournament, vr, graph, win_with);
 
-        //source to matches
-        for (int match_vtx = matches_from; match_vtx < matches_to; ++match_vtx) {
-            find_edge(graph[source], match_vtx).capacity = 1;
-            find_edge(graph[match_vtx], source).capacity = 0;
-        }
-
-        //matches to players
-        match_vtx = matches_from;
-        for (Match& match : tournament.matches) {
-            find_edge(graph[match_vtx], match.winner).capacity = 1;
-            find_edge(graph[match.winner], match_vtx).capacity = 0;
-
-            if (match.winner != 0 && match.bribe_cost <= tournament.budget) {
-                find_edge(graph[match_vtx], match.loser).capacity = 1;
-                find_edge(graph[match.loser], match_vtx).capacity = 0;
-            }
-
-            ++match_vtx;
-        }
-
-        //players (without king) to bottleneck
-        for (int player_vtx = 1; player_vtx < tournament.player_count; ++player_vtx) {
-            find_edge(graph[player_vtx], bottleneck).capacity = win_with;
-            find_edge(graph[bottleneck], player_vtx).capacity = 0;
-        }
-
-        //king to target
-        find_edge(graph[0], target).capacity = win_with;
-        find_edge(graph[target], 0).capacity = 0;
-
-        //bottleneck to target
-        find_edge(graph[bottleneck], target).capacity = tournament.match_count - win_with;
-        find_edge(graph[target], bottleneck).capacity = 0;
-
-        //---------find augmenting paths with BF-----------
+        //---find augmenting paths with modified Dijkstra--
         int cost = 0;
         int flow = 0;
+
+        //set initial potentials
+        for (int vtx = 0; vtx < vr.vertex_count; ++vtx) {
+            vertex_data[vtx].potential = vertex_data[vtx].start_potential;
+        }
+
         while (true) {
-            fill(vertex_data.begin(), vertex_data.end(), Vertex());
-            vertex_data[source].distance = 0;
+            for (int vtx = 0; vtx < vr.vertex_count; ++vtx) {
+                vertex_data[vtx].distance = INFINITY;
+                vertex_data[vtx].predecessor = NONE;
+                vertex_data[vtx].reached = false;
+            }
+
+            vertex_data[vr.source].distance = 0;
 
             int lowest_capacity = INFINITY;
-            //|V| - 1 times
-            for (int i = 0; i < vertex_count - 1; ++i) {
-                //for every edge
-                for (int u = 0; u < vertex_count; ++u) {
-                    for (Edge& edge : graph[u]) {
-                        if (edge.capacity > 0 && vertex_data[u].distance != INFINITY) {
-                            int new_distance = vertex_data[u].distance + edge.cost;
+            //lexicographical comparison of pairs, so weight goes first
+            priority_queue<pair<int, int>, vector<pair<int, int>>, greater<pair<int, int>>> queue;
+            queue.emplace(0, vr.source);
 
-                            if (new_distance < vertex_data[edge.target].distance) {
-                                vertex_data[edge.target].distance = new_distance;
-                                vertex_data[edge.target].predecessor = u;
+            while (!queue.empty()) {
+                pair<int, int> dist_vtx = queue.top();
+                queue.pop();
 
-                                if (edge.capacity < lowest_capacity) {
-                                    lowest_capacity = edge.capacity;
-                                }
+                int u = dist_vtx.second;
+
+                if (vertex_data[u].reached || dist_vtx.first != vertex_data[u].distance) {
+                    continue;
+                }
+
+                vertex_data[u].reached = true;
+
+                for (Edge& edge : graph[u]) {
+                    if (edge.capacity > 0) {
+                        int new_distance = vertex_data[u].distance + edge.cost + vertex_data[u].potential - vertex_data[edge.target].potential;
+
+                        if (new_distance < vertex_data[edge.target].distance) {
+                            vertex_data[edge.target].distance = new_distance;
+                            vertex_data[edge.target].predecessor = u;
+
+                            if (edge.capacity < lowest_capacity) {
+                                lowest_capacity = edge.capacity;
                             }
+
+                            queue.emplace(new_distance, edge.target);
                         }
                     }
                 }
+
             }
 
-            int curr = target;
-            int pred = vertex_data[target].predecessor;
+            int curr = vr.target;
+            int pred = vertex_data[vr.target].predecessor;
 
             if (pred != NONE) {
+                //update flow
                 flow += lowest_capacity;
                 
                 while (pred != NONE) {
@@ -195,6 +268,16 @@ bool solve(Tournament& tournament) {
 
                     curr = vertex_data[curr].predecessor;
                     pred = vertex_data[pred].predecessor;
+                }
+                
+                //update potentials
+                for (int vtx = 0; vtx < vr.vertex_count; ++vtx) {
+                    if (vertex_data[vtx].distance == INFINITY) {
+                        vertex_data[vtx].potential = INFINITY;
+                    }
+                    else {
+                        vertex_data[vtx].potential += vertex_data[vtx].distance;
+                    }
                 }
             }
             else {
