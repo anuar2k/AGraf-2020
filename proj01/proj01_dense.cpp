@@ -148,7 +148,6 @@ bool solve(Tournament& tournament) {
         //-----------set capacities in graph---------------
         reset_capacities(tournament, vr, graph, edge_data, win_with);
 
-        //---find augmenting paths with modified Dijkstra--
         int cost = 0;
         int flow = 0;
 
