@@ -175,8 +175,6 @@ inline bool solve(Tournament& tournament) {
             fill(vertex_data.begin(), vertex_data.end(), Vertex());
             vertex_data[vr.source].distance = 0;
 
-            int lowest_capacity = INFINITY;
-
             queue.push(vr.source);
             queue_contains[vr.source] = true;
 
@@ -197,10 +195,6 @@ inline bool solve(Tournament& tournament) {
                                 queue.push(edge.target);
                                 queue_contains[edge.target] = true;
                             }
-
-                            if (edge.capacity < lowest_capacity) {
-                                lowest_capacity = edge.capacity;
-                            }
                         }
                     }
                 }
@@ -210,8 +204,24 @@ inline bool solve(Tournament& tournament) {
             int pred = vertex_data[vr.target].predecessor;
 
             if (pred != NONE) {
+                int lowest_capacity = INFINITY;
+
+                while (pred != NONE) {
+                    int edge_cap = find_edge(graph[pred], curr).capacity;
+                    
+                    if (edge_cap < lowest_capacity) {
+                        lowest_capacity = edge_cap;
+                    }
+
+                    curr = vertex_data[curr].predecessor;
+                    pred = vertex_data[pred].predecessor;
+                }
+
                 //update flow
                 flow += lowest_capacity;
+
+                curr = vr.target;
+                pred = vertex_data[vr.target].predecessor;
                 
                 while (pred != NONE) {
                     find_edge(graph[pred], curr).capacity -= lowest_capacity;
