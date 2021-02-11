@@ -1,6 +1,6 @@
-#include <iostream>
 #include <vector>
-#include <unordered_set>
+#include <cctype>
+#include <stdio.h>
 
 class Subset {
     public:
@@ -44,7 +44,7 @@ struct Vertex {
     int vtx_map_idx; //index of the vertex in vertices_map
 };
 
-int chordal_maxclique(std::vector<std::unordered_set<int>>& graph) {
+int chordal_maxclique(std::vector<std::vector<int>>& graph) {
     int n = graph.size();
 
     std::vector<Vertex> vertices; //allocates Vertices, allows O(1) access by absolute index
@@ -138,55 +138,37 @@ int chordal_maxclique(std::vector<std::unordered_set<int>>& graph) {
     return maxclique;
 }
 
-int maxclique(std::vector<std::unordered_set<int>>& graph, std::vector<int>& peo) {
-    int n = peo.size();
-    int result = 1;
-
-    for (int i = n - 1; i >= 0; i--) {
-        if (i < result) {
-            break;
-        }
-
-        int curr = peo[i];
-
-        int count = 1;
-        for (int j = 0; j < i; j++) {
-            if (graph[curr].find(peo[j]) != graph[curr].end()) {
-                count++;
-            }
-        }
-
-        if (count > result) {
-            result = count;
-        }
+int mr_faliszewski_please_dont_put_linear_tasks_anymore_on_oioioi_because_their_performance_is_limited_by_IO() {
+    int result = 0;
+    
+    char input = getc_unlocked(stdin);
+    while (isdigit(input)) {
+        result = 10 * result + (input - '0');
+        input = getc_unlocked(stdin);
     }
 
     return result;
 }
 
 int main() {
-    std::ios_base::sync_with_stdio(false);
-    std::cin.tie(nullptr);
-
-    int game_count;
-    std::cin >> game_count;
+    int game_count = mr_faliszewski_please_dont_put_linear_tasks_anymore_on_oioioi_because_their_performance_is_limited_by_IO();
 
     while (game_count--) {
-        int n, m;
-        std::cin >> n >> m;
+        int n = mr_faliszewski_please_dont_put_linear_tasks_anymore_on_oioioi_because_their_performance_is_limited_by_IO();
+        int m = mr_faliszewski_please_dont_put_linear_tasks_anymore_on_oioioi_because_their_performance_is_limited_by_IO();
 
-        std::vector<std::unordered_set<int>> graph(n, std::unordered_set<int>());
+        std::vector<std::vector<int>> graph(n, std::vector<int>());
         while (m--) {
-            int a, b;
-            std::cin >> a >> b;
+            int a = mr_faliszewski_please_dont_put_linear_tasks_anymore_on_oioioi_because_their_performance_is_limited_by_IO();
+            int b = mr_faliszewski_please_dont_put_linear_tasks_anymore_on_oioioi_because_their_performance_is_limited_by_IO();
 
             a -= 1;
             b -= 1;
 
-            graph[a].insert(b);
-            graph[b].insert(a);
+            graph[a].push_back(b);
+            graph[b].push_back(a);
         }
 
-        std::cout << std::max(2, chordal_maxclique(graph) - 1) << std::endl;
+        printf("%d\n", std::max(2, chordal_maxclique(graph) - 1));
     }
 }
