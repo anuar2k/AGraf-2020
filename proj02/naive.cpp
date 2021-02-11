@@ -42,6 +42,9 @@ vector<int> lexbfs_order(vector<unordered_set<int>>& graph) {
     while (queue.size() > 0) {
         int curr = *queue.back().begin();
         queue.back().erase(curr);
+        if (queue.back().size() == 0) {
+            queue.pop_back();
+        }
 
         result_order.push_back(curr);
 
