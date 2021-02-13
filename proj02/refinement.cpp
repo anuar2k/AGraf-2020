@@ -27,7 +27,7 @@ class Subset {
         }
     }
 
-    bool empty() {
+    inline bool empty() {
         return this->first_vtx > this->last_vtx;
     }
 
@@ -44,7 +44,7 @@ struct Vertex {
     int vtx_map_idx; //index of the vertex in vertices_map
 };
 
-int chordal_maxclique(std::vector<std::vector<int>>& graph) {
+inline int chordal_maxclique(std::vector<std::vector<int>>& graph) {
     int n = graph.size();
 
     std::vector<Vertex> vertices; //allocates Vertices, allows O(1) access by absolute index
@@ -66,7 +66,7 @@ int chordal_maxclique(std::vector<std::vector<int>>& graph) {
     }
 
     int maxclique = 1;
-    for (int i = 0; i < n - 1; i++) {
+    for (int i = 0; i < n; i++) {
         //select the vertex from the leftmost subset
         int curr_vtx = vertices_map[i]->vtx;
 
@@ -133,12 +133,10 @@ int chordal_maxclique(std::vector<std::vector<int>>& graph) {
         }
     }
 
-    delete vertices_map[n - 1]->subset;
-
     return maxclique;
 }
 
-int mr_faliszewski_please_dont_put_linear_tasks_anymore_on_oioioi_because_their_performance_is_limited_by_IO() {
+inline int mr_faliszewski_please_dont_put_linear_tasks_anymore_on_oioioi_because_their_performance_is_limited_by_IO() {
     int result = 0;
     
     char input = getc_unlocked(stdin);
